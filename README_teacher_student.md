@@ -2,6 +2,14 @@
 
 Этот проект реализует процесс обучения типа teacher-student для LoRA в sd_scripts. Принцип работы заключается в том, что сначала teacher модель обрабатывает датасет и сохраняет свои выходы, а затем student модель учится подгоняться под эти предсчитанные выходы.
 
+## ✨ Возможности
+
+- **Поддержка SD и SDXL моделей**: Автоматическое определение типа модели
+- **LyCORIS поддержка**: Использование LyCORIS вместо стандартного LoRA
+- **Экономия VRAM**: Teacher модель не держится в памяти во время обучения
+- **Быстрое обучение**: Student учится напрямую у teacher
+- **Оптимизация для RTX 3060**: Настроено для карт с 12GB памяти
+
 ## Принцип работы
 
 1. **Подготовка teacher outputs**: Запускаете teacher модель на датасете и сохраняете (latents, timesteps, text_embeddings, eps_teacher) в файлы .npz
@@ -14,6 +22,7 @@
 - **Быстрое обучение**: Student учится напрямую у teacher, а не с нуля
 - **Консистентность**: Все примеры обрабатываются одинаково teacher моделью
 - **Масштабируемость**: Можно использовать мощные teacher модели на GPU с большим объемом памяти
+- **Гибкость**: Поддержка различных типов сетей (LoRA, LyCORIS)
 
 ## Требования
 
@@ -23,6 +32,7 @@
 - Transformers
 - sd_scripts (этот проект)
 - GPU с минимум 12GB VRAM (для RTX 3060)
+- **Для LyCORIS**: `pip install lycoris`
 
 ## Установка
 
@@ -32,14 +42,32 @@
 
 ```bash
 pip install -r requirements.txt
+
+# Для LyCORIS поддержки
+pip install lycoris
 ```
 
 ## Использование
 
-### Шаг 1: Подготовка teacher outputs
+### Быстрый запуск (все в одном)
 
-Сначала запустите скрипт для подготовки teacher outputs:
+```bash
+python run_teacher_student_training.py \
+    --train_data_dir ./dataset \
+    --in_json ./dataset/metadata.json \
+    --teacher_model "stabilityai/stable-diffusion-xl-base-1.0" \
+    --base_model "stabilityai/stable-diffusion-xl-base-1.0" \
+    --output_dir ./trained_model \
+    --network_module lycoris.kohya \
+    --network_dim 64 \
+    --network_alpha 64
+```
 
+### Пошаговый запуск
+
+#### Шаг 1: Подготовка teacher outputs
+
+**Для SD модели:**
 ```bash
 python finetune/prepare_teacher_outputs.py \
     --train_data_dir /path/to/your/images \
@@ -53,50 +81,84 @@ python finetune/prepare_teacher_outputs.py \
     --bucket_reso_steps 64
 ```
 
-**Параметры:**
-- `--train_data_dir`: Директория с изображениями для обучения
-- `--in_json`: JSON файл с метаданными (как в обычном обучении)
-- `--teacher_model_name_or_path`: Путь к teacher модели
-- `--output_dir`: Директория для сохранения teacher outputs
-- `--mixed_precision`: Точность вычислений (fp16 для экономии памяти)
-- `--max_resolution`: Максимальное разрешение изображений
-- `--min_bucket_reso`, `--max_bucket_reso`: Диапазон разрешений для bucketing
-- `--bucket_reso_steps`: Шаг между разрешениями bucketing
+**Для SDXL модели:**
+```bash
+python finetune/prepare_teacher_outputs.py \
+    --train_data_dir /path/to/your/images \
+    --in_json /path/to/metadata.json \
+    --teacher_model_name_or_path "stabilityai/stable-diffusion-xl-base-1.0" \
+    --output_dir /path/to/teacher_outputs \
+    --mixed_precision fp16 \
+    --max_resolution "1024,1024" \
+    --min_bucket_reso 512 \
+    --max_bucket_reso 2048 \
+    --bucket_reso_steps 64
+```
 
-### Шаг 2: Обучение student модели
+#### Шаг 2: Обучение student модели
 
-После подготовки teacher outputs запустите обучение student модели:
-
+**С LoRA:**
 ```bash
 python train_network_teacher_student.py \
     --train_data_dir /path/to/your/images \
     --teacher_outputs_dir /path/to/teacher_outputs \
     --output_dir /path/to/trained_lora \
-    --model_name_or_path "runwayml/stable-diffusion-v1-5" \
+    --model_name_or_path "stabilityai/stable-diffusion-xl-base-1.0" \
     --train_batch_size 1 \
     --num_train_epochs 10 \
     --learning_rate 1e-4 \
-    --network_dim 32 \
-    --network_alpha 32 \
+    --network_dim 64 \
+    --network_alpha 64 \
+    --network_module networks.lora \
     --mixed_precision fp16 \
-    --gradient_accumulation_steps 4 \
-    --save_every_n_steps 1000 \
-    --logging_steps 10
+    --gradient_accumulation_steps 4
 ```
 
-**Параметры:**
-- `--train_data_dir`: Директория с изображениями (та же, что и для teacher)
-- `--teacher_outputs_dir`: Директория с teacher outputs (из шага 1)
-- `--output_dir`: Директория для сохранения обученной LoRA
-- `--model_name_or_path`: Базовая модель для обучения LoRA
-- `--train_batch_size`: Размер батча (рекомендуется 1 для экономии памяти)
-- `--num_train_epochs`: Количество эпох обучения
-- `--learning_rate`: Скорость обучения
-- `--network_dim`: Размерность LoRA сети
-- `--network_alpha`: Альфа параметр LoRA
-- `--gradient_accumulation_steps`: Количество шагов накопления градиентов
-- `--save_every_n_steps`: Сохранение модели каждые N шагов
-- `--logging_steps`: Логирование каждые N шагов
+**С LyCORIS:**
+```bash
+python train_network_teacher_student.py \
+    --train_data_dir /path/to/your/images \
+    --teacher_outputs_dir /path/to/teacher_outputs \
+    --output_dir /path/to/trained_lycoris \
+    --model_name_or_path "stabilityai/stable-diffusion-xl-base-1.0" \
+    --train_batch_size 1 \
+    --num_train_epochs 10 \
+    --learning_rate 1e-4 \
+    --network_dim 64 \
+    --network_alpha 64 \
+    --network_module lycoris.kohya \
+    --mixed_precision fp16 \
+    --gradient_accumulation_steps 4
+```
+
+## Параметры
+
+### Основные параметры
+
+- `--train_data_dir`: Директория с изображениями для обучения
+- `--in_json`: JSON файл с метаданными
+- `--teacher_model_name_or_path`: Путь к teacher модели
+- `--output_dir`: Директория для сохранения teacher outputs
+- `--mixed_precision`: Точность вычислений (fp16 для экономии памяти)
+
+### Параметры разрешения
+
+**Для SD:**
+- `--max_resolution`: "512,512" (по умолчанию)
+- `--min_bucket_reso`: 256
+- `--max_bucket_reso`: 1024
+
+**Для SDXL:**
+- `--max_resolution`: "1024,1024" (рекомендуется)
+- `--min_bucket_reso`: 512
+- `--max_bucket_reso`: 2048
+
+### Параметры сети
+
+- `--network_module`: Тип сети ("networks.lora" или "lycoris.kohya")
+- `--network_dim`: Размерность сети (16-128)
+- `--network_alpha`: Альфа параметр сети
+- `--network_weights`: Путь к весам для LyCORIS (опционально)
 
 ## Структура файлов
 
@@ -106,6 +168,7 @@ finetune/
 library/
 ├── teacher_student_dataset.py    # Dataset для teacher-student обучения
 train_network_teacher_student.py  # Основной скрипт обучения
+run_teacher_student_training.py   # Автоматизированный pipeline
 README_teacher_student.md         # Этот файл
 ```
 
@@ -119,41 +182,68 @@ README_teacher_student.md         # Этот файл
 - `caption`: Текстовая подпись к изображению
 - `image_path`: Путь к исходному изображению
 - `original_size`: Оригинальный размер изображения
+- `is_sdxl`: Флаг SDXL модели
 
 ## Оптимизация для RTX 3060 12GB
 
-Для карты с ограниченной памятью:
-
-1. **Используйте fp16**: `--mixed_precision fp16`
-2. **Маленький batch size**: `--train_batch_size 1`
-3. **Gradient accumulation**: `--gradient_accumulation_steps 4` или больше
-4. **Оптимизируйте разрешение**: Используйте `--max_resolution "512,512"` или меньше
-5. **Ограничьте LoRA размер**: `--network_dim 16` или `--network_dim 32`
-
-## Пример полного workflow
-
+### SD модели
 ```bash
-# 1. Подготовка teacher outputs
-python finetune/prepare_teacher_outputs.py \
+--train_batch_size 1
+--mixed_precision fp16
+--gradient_accumulation_steps 4
+--max_resolution "512,512"
+--network_dim 32
+```
+
+### SDXL модели
+```bash
+--train_batch_size 1
+--mixed_precision fp16
+--gradient_accumulation_steps 8
+--max_resolution "1024,1024"
+--network_dim 64
+--gradient_checkpointing
+```
+
+## Примеры использования
+
+### SD + LoRA
+```bash
+python run_teacher_student_training.py \
     --train_data_dir ./dataset \
     --in_json ./dataset/metadata.json \
-    --teacher_model_name_or_path "runwayml/stable-diffusion-v1-5" \
-    --output_dir ./teacher_outputs \
-    --mixed_precision fp16
-
-# 2. Обучение student LoRA
-python train_network_teacher_student.py \
-    --train_data_dir ./dataset \
-    --teacher_outputs_dir ./teacher_outputs \
+    --teacher_model "runwayml/stable-diffusion-v1-5" \
+    --base_model "runwayml/stable-diffusion-v1-5" \
     --output_dir ./trained_lora \
-    --model_name_or_path "runwayml/stable-diffusion-v1-5" \
-    --train_batch_size 1 \
-    --num_train_epochs 10 \
-    --learning_rate 1e-4 \
+    --network_module networks.lora \
     --network_dim 32 \
-    --network_alpha 32 \
-    --mixed_precision fp16 \
-    --gradient_accumulation_steps 4
+    --network_alpha 32
+```
+
+### SDXL + LyCORIS
+```bash
+python run_teacher_student_training.py \
+    --train_data_dir ./dataset \
+    --in_json ./dataset/metadata.json \
+    --teacher_model "stabilityai/stable-diffusion-xl-base-1.0" \
+    --base_model "stabilityai/stable-diffusion-xl-base-1.0" \
+    --output_dir ./trained_lycoris \
+    --network_module lycoris.kohya \
+    --network_dim 64 \
+    --network_alpha 64 \
+    --max_resolution "1024,1024"
+```
+
+### Смешанные модели (teacher SDXL, student SD)
+```bash
+python run_teacher_student_training.py \
+    --train_data_dir ./dataset \
+    --in_json ./dataset/metadata.json \
+    --teacher_model "stabilityai/stable-diffusion-xl-base-1.0" \
+    --base_model "runwayml/stable-diffusion-v1-5" \
+    --output_dir ./trained_mixed \
+    --network_module networks.lora \
+    --network_dim 32
 ```
 
 ## Troubleshooting
@@ -162,17 +252,23 @@ python train_network_teacher_student.py \
 - Уменьшите `--train_batch_size` до 1
 - Увеличьте `--gradient_accumulation_steps`
 - Используйте `--mixed_precision fp16`
-- Уменьшите `--max_resolution`
+- Для SDXL: используйте `--gradient_checkpointing`
+
+### Ошибка "LyCORIS not installed"
+```bash
+pip install lycoris
+```
 
 ### Ошибка "Teacher output not found"
 - Проверьте, что `--teacher_outputs_dir` содержит файлы .npz
 - Убедитесь, что имена файлов совпадают с именами изображений
 - Запустите сначала `prepare_teacher_outputs.py`
 
-### Медленное обучение
+### Медленное обучение SDXL
 - Увеличьте `--gradient_accumulation_steps`
 - Уменьшите `--max_data_loader_n_workers`
 - Используйте SSD для хранения teacher outputs
+- Рассмотрите использование `--gradient_checkpointing`
 
 ## Дополнительные возможности
 
@@ -186,10 +282,24 @@ python train_network_teacher_student.py \
 --v_parameterization
 ```
 
-### Настройка LoRA параметров
+### Настройка LyCORIS
 ```bash
---network_dim 64 --network_alpha 64  # Большая LoRA сеть
---network_dropout 0.1                 # Dropout для регуляризации
+--network_module lycoris.kohya
+--network_dim 64 --network_alpha 64
+--network_dropout 0.1
+```
+
+### Продолжение обучения
+```bash
+--network_weights /path/to/existing/weights
+```
+
+## Тестирование
+
+Запустите тесты для проверки функциональности:
+
+```bash
+python test_teacher_student.py
 ```
 
 ## Лицензия
@@ -202,4 +312,5 @@ python train_network_teacher_student.py \
 1. Проверьте логи на наличие ошибок
 2. Убедитесь, что все зависимости установлены
 3. Проверьте соответствие версий PyTorch и Diffusers
-4. Создайте issue в репозитории проекта
+4. Для LyCORIS: убедитесь, что установлен пакет `lycoris`
+5. Создайте issue в репозитории проекта

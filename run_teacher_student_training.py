@@ -2,6 +2,7 @@
 """
 Complete teacher-student training pipeline runner.
 This script automates the entire process from teacher outputs preparation to student training.
+Supports both SD and SDXL models, and LyCORIS network modules.
 """
 
 import argparse
@@ -101,13 +102,28 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=1e-4,
                        help="Learning rate")
     parser.add_argument("--network_dim", type=int, default=32,
-                       help="LoRA network dimension")
+                       help="Network dimension")
     parser.add_argument("--network_alpha", type=float, default=32,
-                       help="LoRA network alpha")
+                       help="Network alpha")
+    parser.add_argument("--network_module", type=str, default="networks.lora",
+                       choices=["networks.lora", "lycoris.kohya"],
+                       help="Network module to use (LoRA or LyCORIS)")
+    parser.add_argument("--network_weights", type=str, default=None,
+                       help="Path to network weights for LyCORIS")
     parser.add_argument("--mixed_precision", type=str, default="fp16",
                        choices=["no", "fp16", "bf16"])
     parser.add_argument("--gradient_accumulation_steps", type=int, default=4,
                        help="Gradient accumulation steps")
+    
+    # SDXL specific parameters
+    parser.add_argument("--max_resolution", type=str, default="1024,1024",
+                       help="Maximum resolution (use 1024,1024 for SDXL)")
+    parser.add_argument("--min_bucket_reso", type=int, default=512,
+                       help="Minimum bucket resolution (use 512 for SDXL)")
+    parser.add_argument("--max_bucket_reso", type=int, default=2048,
+                       help="Maximum bucket resolution (use 2048 for SDXL)")
+    parser.add_argument("--bucket_reso_steps", type=int, default=64,
+                       help="Bucket resolution steps")
     
     args = parser.parse_args()
     
@@ -115,14 +131,21 @@ def main():
     if args.teacher_outputs_dir is None:
         args.teacher_outputs_dir = os.path.join(args.output_dir, "teacher_outputs")
     
+    # Auto-detect if models are SDXL
+    is_sdxl_teacher = "xl" in args.teacher_model.lower() or "sdxl" in args.teacher_model.lower()
+    is_sdxl_base = "xl" in args.base_model.lower() or "sdxl" in args.base_model.lower()
+    
     print("🚀 Teacher-Student Training Pipeline")
     print("=" * 60)
     print(f"Train data directory: {args.train_data_dir}")
     print(f"Metadata file: {args.in_json}")
-    print(f"Teacher model: {args.teacher_model}")
-    print(f"Base model: {args.base_model}")
+    print(f"Teacher model: {args.teacher_model} {'(SDXL)' if is_sdxl_teacher else '(SD)'}")
+    print(f"Base model: {args.base_model} {'(SDXL)' if is_sdxl_base else '(SD)'}")
     print(f"Output directory: {args.output_dir}")
     print(f"Teacher outputs directory: {args.teacher_outputs_dir}")
+    print(f"Network module: {args.network_module}")
+    if args.network_module == "lycoris.kohya":
+        print(f"LyCORIS weights: {args.network_weights or 'None (will create new)'}")
     print("=" * 60)
     
     # Check requirements
@@ -141,10 +164,10 @@ def main():
             "--teacher_model_name_or_path", args.teacher_model,
             "--output_dir", args.teacher_outputs_dir,
             "--mixed_precision", args.mixed_precision,
-            "--max_resolution", "512,512",
-            "--min_bucket_reso", "256",
-            "--max_bucket_reso", "1024",
-            "--bucket_reso_steps", "64"
+            "--max_resolution", args.max_resolution,
+            "--min_bucket_reso", str(args.min_bucket_reso),
+            "--max_bucket_reso", str(args.max_bucket_reso),
+            "--bucket_reso_steps", str(args.bucket_reso_steps)
         ]
         
         if not run_command(teacher_prep_cmd, "Preparing teacher outputs"):
@@ -166,13 +189,18 @@ def main():
             "--learning_rate", str(args.learning_rate),
             "--network_dim", str(args.network_dim),
             "--network_alpha", str(args.network_alpha),
+            "--network_module", args.network_module,
             "--mixed_precision", args.mixed_precision,
             "--gradient_accumulation_steps", str(args.gradient_accumulation_steps),
             "--save_every_n_steps", "1000",
             "--logging_steps", "10"
         ]
         
-        if not run_command(training_cmd, "Training student LoRA model"):
+        # Add LyCORIS specific arguments
+        if args.network_module == "lycoris.kohya" and args.network_weights:
+            training_cmd.extend(["--network_weights", args.network_weights])
+        
+        if not run_command(training_cmd, "Training student model"):
             print("❌ Student training failed. Exiting.")
             sys.exit(1)
     else:
@@ -181,12 +209,28 @@ def main():
     print("\n🎉 Pipeline completed successfully!")
     print(f"📁 Teacher outputs saved to: {args.teacher_outputs_dir}")
     if not args.skip_training:
-        print(f"📁 Trained LoRA saved to: {args.output_dir}")
+        print(f"📁 Trained model saved to: {args.output_dir}")
     
     print("\n📋 Next steps:")
     print("1. Check the output directories for generated files")
-    print("2. Test the trained LoRA model")
+    print("2. Test the trained model")
     print("3. Adjust parameters if needed and re-run training")
+    
+    # Print model-specific recommendations
+    if is_sdxl_teacher or is_sdxl_base:
+        print("\n💡 SDXL-specific tips:")
+        print("- Use higher resolutions (1024x1024 or higher)")
+        print("- SDXL models have two text encoders")
+        print("- VAE scale factor is 0.13025 (vs 0.18215 for SD)")
+        print("- Consider using larger network dimensions for better quality")
+    
+    if args.network_module == "lycoris.kohya":
+        print("\n💡 LyCORIS-specific tips:")
+        print("- LyCORIS provides more flexible network architectures")
+        print("- Can use different dimensions for different components")
+        print("- Supports advanced techniques like LoHa, LoKr, etc.")
+        print("- Install with: pip install lycoris")
+
 
 if __name__ == "__main__":
     main()

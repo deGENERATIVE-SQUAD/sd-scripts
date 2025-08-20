@@ -1,6 +1,7 @@
 """
 Teacher-Student Dataset for LoRA training.
 This dataset reads pre-computed teacher outputs instead of processing images from scratch.
+Supports both SD and SDXL models.
 """
 
 import os
@@ -20,6 +21,7 @@ class TeacherStudentDataset(BaseDataset):
     """
     Dataset for teacher-student training that uses pre-computed teacher outputs.
     This eliminates the need to keep the teacher model in memory during training.
+    Supports both SD and SDXL models.
     """
     
     def __init__(
@@ -72,6 +74,8 @@ class TeacherStudentDataset(BaseDataset):
             with open(teacher_info_path, "r", encoding="utf-8") as f:
                 self.teacher_info = json.load(f)
             logger.info(f"Loaded teacher info: {self.teacher_info['teacher_model']}")
+            self.is_sdxl = self.teacher_info.get("is_sdxl", False)
+            logger.info(f"Model type: {'SDXL' if self.is_sdxl else 'SD'}")
         else:
             raise FileNotFoundError(f"Teacher info file not found: {teacher_info_path}")
         
@@ -166,6 +170,24 @@ class TeacherStudentDataset(BaseDataset):
             # Get original size
             original_size = teacher_data.get("original_size", [self.width, self.height])
             
+            # Handle SDXL vs SD text embeddings
+            if self.is_sdxl and text_embeddings.dim() == 3 and text_embeddings.shape[1] == 2:
+                # SDXL: text_embeddings is [batch, 2, seq_len, hidden_dim]
+                # Split into two separate embeddings
+                text_embeddings_1 = text_embeddings[:, 0]  # First text encoder
+                text_embeddings_2 = text_embeddings[:, 1]  # Second text encoder
+                # Store as a list for compatibility with training code
+                text_embeddings = [text_embeddings_1, text_embeddings_2]
+            elif self.is_sdxl and text_embeddings.dim() == 4:
+                # SDXL: text_embeddings is [batch, 2, seq_len, hidden_dim]
+                text_embeddings_1 = text_embeddings[:, 0]
+                text_embeddings_2 = text_embeddings[:, 1]
+                text_embeddings = [text_embeddings_1, text_embeddings_2]
+            else:
+                # SD: text_embeddings is [batch, seq_len, hidden_dim]
+                # Wrap in list for compatibility
+                text_embeddings = [text_embeddings]
+            
             # Create batch item
             batch_item = {
                 "latents": latents,
@@ -176,6 +198,7 @@ class TeacherStudentDataset(BaseDataset):
                 "image_path": image_info.image_path,
                 "original_size": original_size,
                 "teacher_output_path": image_info.teacher_output_path,
+                "is_sdxl": self.is_sdxl,
             }
             
             return batch_item
@@ -183,16 +206,37 @@ class TeacherStudentDataset(BaseDataset):
         except Exception as e:
             logger.error(f"Error loading teacher output for {image_info.image_path}: {e}")
             # Return a dummy item to avoid breaking the training loop
-            return {
-                "latents": torch.zeros(1, 4, self.height // 8, self.width // 8),
-                "timesteps": torch.zeros(1, dtype=torch.long),
-                "text_embeddings": torch.zeros(1, 77, 768),
-                "eps_teacher": torch.zeros(1, 4, self.height // 8, self.width // 8),
-                "caption": "",
-                "image_path": image_info.image_path,
-                "original_size": [self.width, self.height],
-                "teacher_output_path": image_info.teacher_output_path,
-            }
+            if self.is_sdxl:
+                # SDXL dummy item
+                batch_item = {
+                    "latents": torch.zeros(1, 4, self.height // 8, self.width // 8),
+                    "timesteps": torch.zeros(1, dtype=torch.long),
+                    "text_embeddings": [
+                        torch.zeros(1, 77, 768),  # First text encoder
+                        torch.zeros(1, 77, 1280)  # Second text encoder
+                    ],
+                    "eps_teacher": torch.zeros(1, 4, self.height // 8, self.width // 8),
+                    "caption": "",
+                    "image_path": image_info.image_path,
+                    "original_size": [self.width, self.height],
+                    "teacher_output_path": image_info.teacher_output_path,
+                    "is_sdxl": self.is_sdxl,
+                }
+            else:
+                # SD dummy item
+                batch_item = {
+                    "latents": torch.zeros(1, 4, self.height // 8, self.width // 8),
+                    "timesteps": torch.zeros(1, dtype=torch.long),
+                    "text_embeddings": [torch.zeros(1, 77, 768)],
+                    "eps_teacher": torch.zeros(1, 4, self.height // 8, self.width // 8),
+                    "caption": "",
+                    "image_path": image_info.image_path,
+                    "original_size": [self.width, self.height],
+                    "teacher_output_path": image_info.teacher_output_path,
+                    "is_sdxl": self.is_sdxl,
+                }
+            
+            return batch_item
     
     def is_latent_cacheable(self) -> bool:
         """Teacher outputs are already cached, so this is always True"""
