@@ -1,0 +1,105 @@
+# Example configuration file for SDXL Teacher-Student Training
+# This file demonstrates how to configure both teacher generation and student training
+
+[teacher_generation]
+# Teacher model path (required)
+pretrained_model_name_or_path = "stabilityai/stable-diffusion-xl-base-1.0"
+
+# Dataset path (required)
+train_data_dir = "./my_dataset"
+
+# Output directory for teacher outputs (required)
+teacher_output_dir = "./teacher_outputs"
+
+# Image resolution
+resolution = 1024
+
+# Maximum token length for text
+max_token_length = 225
+
+# Batch size for processing
+train_batch_size = 1
+
+# Mixed precision for memory efficiency
+mixed_precision = "fp16"
+
+# Memory optimization flags
+lowram = true
+xformers = true
+
+# Number of inference steps for noise generation
+num_inference_steps = 1000
+
+# VAE batch size for memory optimization
+vae_batch_size = 1
+
+# Cache text encoder outputs for speed
+cache_text_encoder_outputs = true
+
+[student_training]
+# Base model for student (required)
+pretrained_model_name_or_path = "stabilityai/stable-diffusion-xl-base-1.0"
+
+# Path to teacher outputs (required)
+train_data_dir = "./teacher_outputs"
+
+# Output directory for trained student
+output_dir = "./student_output"
+
+# Output filename prefix
+output_name = "my_student"
+
+# Training parameters
+max_train_epochs = 10
+max_train_steps = 1000
+learning_rate = 1e-4
+train_batch_size = 1
+
+# Memory optimization
+mixed_precision = "fp16"
+lowram = true
+xformers = true
+
+# Save checkpoints
+save_every_n_epochs = 1
+save_every_n_steps = 0
+
+# Network configuration (LoRA example)
+network_module = "networks.lora"
+network_dim = 64
+network_alpha = 32
+
+# Training strategy
+network_train_unet_only = false
+network_train_text_encoder_only = false
+
+# Optimizer settings
+optimizer_type = "AdamW"
+lr_scheduler_type = "cosine"
+lr_warmup_steps = 100
+
+# Loss function
+loss_type = "l2"
+
+# Gradient accumulation for effective larger batch size
+gradient_accumulation_steps = 4
+
+# Maximum gradient norm for clipping
+max_grad_norm = 1.0
+
+# Optional: limit number of samples for testing
+# max_samples = 1000
+
+# Optional: custom network arguments
+# network_args = ["custom_arg1", "custom_arg2"]
+
+# Optional: base weights for additional training
+# base_weights = ["path/to/additional/weights.safetensors"]
+# base_weights_multiplier = [1.0]
+
+# Optional: logging
+log_with = "tensorboard"
+logging_dir = "./logs"
+
+# Optional: seed for reproducibility
+seed = 42
