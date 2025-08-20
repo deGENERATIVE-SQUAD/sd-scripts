@@ -1,0 +1,29 @@
+# Teacher-Student Training Requirements
+# Core dependencies
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Diffusers and transformers
+diffusers>=0.21.0
+transformers>=4.30.0
+accelerate>=0.20.0
+
+# Data processing
+numpy>=1.21.0
+Pillow>=9.0.0
+tqdm>=4.64.0
+
+# Model saving/loading
+safetensors>=0.3.0
+
+# Optional: 8-bit optimizers for memory efficiency
+bitsandbytes>=0.41.0
+
+# Optional: System monitoring
+psutil>=5.9.0
+
+# Development dependencies (optional)
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=5.0.0
