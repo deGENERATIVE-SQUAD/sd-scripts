@@ -1,0 +1,69 @@
+# Example configuration for Teacher-Student training
+# This file shows the recommended settings for different scenarios
+
+[teacher_generation]
+# Teacher model settings
+model_path = "runwayml/stable-diffusion-v1-5"
+vae_path = null  # Use model's VAE
+use_fp16 = true
+
+# Dataset settings
+train_data_dir = "./my_dataset"
+metadata_file = null  # Optional metadata file
+caption_extension = ".txt"
+resolution = [512, 512]
+
+# Output settings
+output_dir = "./teacher_outputs"
+seed = 42
+
+[student_training]
+# Student model settings
+model_path = "runwayml/stable-diffusion-v1-5"
+vae_path = null  # Use model's VAE
+use_fp16 = true
+
+# Teacher outputs
+teacher_outputs_dir = "./teacher_outputs"
+
+# Training settings
+max_train_steps = 2000
+batch_size = 1  # Recommended for RTX 3060 12GB
+learning_rate = 1e-4
+weight_decay = 1e-6
+max_grad_norm = 1.0
+
+# Optimizer settings
+optimizer_type = "AdamW8bit"  # Memory efficient
+lr_scheduler = "constant"      # constant, linear, cosine
+
+# Output settings
+output_dir = "./student_outputs"
+resolution = [512, 512]
+
+# Logging and saving
+logging_steps = 10
+save_steps = 100
+debug_dataset = false
+seed = 42
+
+# Advanced settings for higher-end GPUs
+[student_training.high_vram]
+batch_size = 2
+learning_rate = 5e-5
+optimizer_type = "AdamW"
+lr_scheduler = "cosine"
+
+# Settings for SDXL models
+[student_training.sdxl]
+model_path = "stabilityai/stable-diffusion-xl-base-1.0"
+resolution = [1024, 1024]
+batch_size = 1  # SDXL requires more memory
+learning_rate = 5e-5
+
+# Settings for SD3 models
+[student_training.sd3]
+model_path = "stabilityai/stable-diffusion-3-medium-diffusers"
+resolution = [1024, 1024]
+batch_size = 1  # SD3 requires more memory
+learning_rate = 1e-5
