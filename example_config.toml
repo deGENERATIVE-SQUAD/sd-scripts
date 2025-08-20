@@ -1,0 +1,88 @@
+# Example configuration for teacher-student LoRA training
+# This file shows the recommended settings for RTX 3060 12GB
+
+[general]
+# Base model to use for LoRA training
+model_name = "runwayml/stable-diffusion-v1-5"
+
+# Training parameters
+train_batch_size = 1
+num_train_epochs = 10
+max_train_steps = 10000
+learning_rate = 1e-4
+gradient_accumulation_steps = 4
+
+# LoRA network parameters
+network_dim = 32
+network_alpha = 32
+
+# Mixed precision for memory efficiency
+mixed_precision = "fp16"
+
+# Gradient clipping
+max_grad_norm = 1.0
+
+# Save and logging
+save_every_n_steps = 1000
+logging_steps = 10
+
+# Data loading
+max_data_loader_n_workers = 4
+
+# Training components
+train_text_encoder = false
+train_unet = true
+
+# V-parameterization (optional)
+v_parameterization = false
+
+# Paths
+train_data_dir = "./dataset"
+teacher_outputs_dir = "./teacher_outputs"
+output_dir = "./trained_lora"
+in_json = "./dataset/metadata.json"
+
+# Resolution settings
+max_resolution = "512,512"
+min_bucket_reso = 256
+max_bucket_reso = 1024
+bucket_reso_steps = 64
+bucket_no_upscale = false
+
+# Advanced LoRA settings
+network_dropout = 0.0
+text_encoder_lr_scale = 1.0
+unet_lr_scale = 1.0
+vae_lr_scale = 1.0
+
+# Optimizer settings
+optimizer_type = "AdamW8bit"
+lr_scheduler = "constant"
+lr_warmup_steps = 0
+
+# Memory optimization
+gradient_checkpointing = false
+xformers = true
+
+# Example usage:
+# 1. First prepare teacher outputs:
+# python finetune/prepare_teacher_outputs.py \
+#     --train_data_dir ./dataset \
+#     --in_json ./dataset/metadata.json \
+#     --teacher_model_name_or_path "runwayml/stable-diffusion-v1-5" \
+#     --output_dir ./teacher_outputs \
+#     --mixed_precision fp16
+
+# 2. Then train student LoRA:
+# python train_network_teacher_student.py \
+#     --train_data_dir ./dataset \
+#     --teacher_outputs_dir ./teacher_outputs \
+#     --output_dir ./trained_lora \
+#     --model_name_or_path "runwayml/stable-diffusion-v1-5" \
+#     --train_batch_size 1 \
+#     --num_train_epochs 10 \
+#     --learning_rate 1e-4 \
+#     --network_dim 32 \
+#     --network_alpha 32 \
+#     --mixed_precision fp16 \
+#     --gradient_accumulation_steps 4
