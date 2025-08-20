@@ -6,6 +6,7 @@ text embeddings, and teacher noise predictions for later student training.
 """
 
 import argparse
+import json
 import os
 import sys
 import logging
@@ -14,6 +15,7 @@ from typing import List, Optional, Union, Dict, Any
 
 import torch
 from accelerate import Accelerator
+from accelerate.utils import set_seed
 from diffusers import DDPMScheduler
 from tqdm import tqdm
 

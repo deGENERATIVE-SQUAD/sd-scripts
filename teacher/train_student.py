@@ -6,6 +6,7 @@ the teacher's noise predictions instead of learning from scratch.
 """
 
 import argparse
+import json
 import os
 import sys
 import logging
@@ -14,6 +15,7 @@ from typing import List, Optional, Union, Dict, Any
 
 import torch
 from accelerate import Accelerator
+from accelerate.utils import set_seed
 from diffusers import DDPMScheduler
 from tqdm import tqdm
 
@@ -534,7 +536,6 @@ def main():
     
     # Set seed
     if args.seed is not None:
-        from accelerate.utils import set_seed
         set_seed(args.seed)
     
     # Initialize accelerator
