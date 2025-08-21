@@ -476,7 +476,7 @@ def main():
     args = train_util.read_config_from_file(args, parser)
     
     # Set seed
-    if args.seed is not None:
+    if hasattr(args, 'seed') and args.seed is not None:
         set_seed(args.seed)
     
     # Initialize accelerator
@@ -485,18 +485,25 @@ def main():
         static_graph=True,
     )
     
+    # Prepare logging configuration
+    log_kwargs = {}
+    if hasattr(args, 'log_with') and args.log_with:
+        log_kwargs['log_with'] = args.log_with
+    if hasattr(args, 'logging_dir') and args.logging_dir:
+        log_kwargs['logging_dir'] = args.logging_dir
+    
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision,
-        log_with=args.log_with,
-        logging_dir=args.logging_dir,
         ddp_kwargs=ddp_kwargs,
+        **log_kwargs
     )
     
     # Setup logging
     if accelerator.is_main_process:
+        log_level = getattr(args, 'console_log_level', 'INFO')
         logging.basicConfig(
-            level=getattr(logging, args.console_log_level.upper()),
+            level=getattr(logging, log_level.upper()),
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             handlers=[logging.StreamHandler()],
         )
